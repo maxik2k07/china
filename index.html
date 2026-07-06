@@ -17,17 +17,22 @@
 <nav class="nav">
   <div class="container nav-inner">
     <a href="#top" class="logo"><span class="logo-cn">中国</span> Путешествие в Китай</a>
-    <button class="burger" id="burger" aria-label="Меню">
-      <span></span><span></span><span></span>
-    </button>
-    <ul class="nav-menu" id="navMenu">
-      <li><a href="#constructor">Конструктор</a></li>
-      <li><a href="#itinerary-section">Маршрут</a></li>
-      <li><a href="#info">Полезное</a></li>
-      <li><a href="#phrasebook">Разговорник</a></li>
-    </ul>
+    <div class="nav-right">
+      <ul class="nav-menu" id="navMenu">
+        <li><a href="#constructor">Конструктор</a></li>
+        <li><a href="#itinerary-section">Маршрут</a></li>
+        <li><a href="#info">Полезное</a></li>
+        <li><a href="#phrasebook">Разговорник</a></li>
+      </ul>
+      <button class="music-btn" id="musicBtn" aria-label="Выключить музыку" aria-pressed="false" title="Фоновая музыка"></button>
+      <button class="burger" id="burger" aria-label="Меню">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
   </div>
 </nav>
+
+<audio id="bgMusic" src="audio/music.mp3" loop preload="auto"></audio>
 
 <!-- ======================= HERO ======================= -->
 <header class="hero" id="top">
@@ -136,8 +141,9 @@
       </div>
       <div class="map-canvas" id="chinaMap" role="img" aria-label="Схематичная карта Китая с маршрутом путешествия"></div>
       <div class="map-tooltip" id="mapTooltip" hidden></div>
-      <p class="map-note">Карта схематичная. Наведите на точку — увидите сводку по городу;
-        нажмите — добавите или уберёте его из маршрута.</p>
+      <p class="map-note">Наведите на точку — увидите сводку по городу;
+        нажмите — добавите или уберёте его из маршрута. Сплошная линия — поезд по реальному
+        ж/д-коридору, пунктирная дуга — перелёт.</p>
     </div>
   </div>
 </section>

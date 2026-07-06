@@ -430,89 +430,136 @@ function flashMessage(text) {
 
 /* ---------- Карта Китая ---------- */
 
-/* Упрощённый контур материкового Китая, [долгота, широта] */
-const CHINA_OUTLINE = [
-  [73.6, 39.4], [75, 37.2], [78, 35.6], [79, 33], [81.5, 30.4], [85, 28.5],
-  [88.1, 27.9], [92, 27.5], [94.6, 29.3], [96, 29], [97.5, 28.2], [98.7, 25.9],
-  [97.6, 24.3], [98.9, 23.2], [100.2, 21.5], [101.7, 21.1], [102.5, 22.4],
-  [105, 23], [106.7, 22.1], [108.1, 21.5], [109.6, 21.4], [110.4, 20.3],
-  [111.8, 21.6], [113.2, 22.1], [114.8, 22.6], [116.6, 23.3], [118.1, 24.5],
-  [119.6, 25.7], [120.2, 27.3], [121.4, 28.4], [122, 30.3], [121.5, 31.4],
-  [120.9, 32.6], [119.8, 34.4], [120.3, 36.1], [122.5, 37.4], [121.1, 37.7],
-  [119.2, 37.2], [117.8, 38.4], [117.6, 39.2], [119, 39.9], [121, 40.7],
-  [121.3, 38.9], [122.3, 39.05], [123.5, 39.8], [124.4, 39.8], [125.3, 40.6],
-  [126.9, 41.7], [128.1, 41.4], [129.2, 42.4], [130.7, 42.3], [131.3, 44.9],
-  [133.1, 45.1], [134.7, 47.7], [134.6, 48.3], [132.6, 47.8], [130.9, 48.9],
-  [129.5, 49.4], [127.8, 49.6], [126.9, 51.3], [125.9, 53], [123.6, 53.5],
-  [121.5, 53.3], [119.9, 52.5], [117.8, 49.5], [115.6, 47.9], [113.6, 45],
-  [111.4, 43.4], [105, 41.9], [100.9, 42.6], [96.4, 42.7], [95.9, 44.3],
-  [93.5, 45], [90.9, 47.9], [87.8, 49.2], [85.5, 47.1], [83, 47.2],
-  [82.1, 45.6], [79.9, 44.9], [80.4, 43.1], [76, 40.5],
-];
-
-const MAP_CFG = { minLng: 73, maxLng: 135.5, minLat: 17.5, maxLat: 54.5, w: 800, h: 570 };
+/* Подложка — images/map.png (3840×3232). Проекция карты коническая,
+   поэтому широта/долгота переводятся в пиксели квадратичной моделью,
+   откалиброванной по опорным точкам побережья. viewBox = 960×808 (пиксели ÷ 4). */
+const MAP_CFG = { w: 960, h: 808 };
+const PROJ_X = [-8021.104745, 128.732092, 24.907076, 0.147278, -0.339008, -0.647235];
+const PROJ_Y = [2216.243261, 34.777449, -33.416641, -0.04767, -0.169052, -0.62961];
 
 function mapXY(lat, lng) {
-  const x = (lng - MAP_CFG.minLng) / (MAP_CFG.maxLng - MAP_CFG.minLng) * MAP_CFG.w;
-  const y = (MAP_CFG.maxLat - lat) / (MAP_CFG.maxLat - MAP_CFG.minLat) * MAP_CFG.h;
-  return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+  const f = [1, lng, lat, lng * lat, lng * lng, lat * lat];
+  const px = PROJ_X.reduce((s, c, i) => s + c * f[i], 0) / 4;
+  const py = PROJ_Y.reduce((s, c, i) => s + c * f[i], 0) / 4;
+  return [Math.round(px * 10) / 10, Math.round(py * 10) / 10];
+}
+
+/* Промежуточные точки реальных ж/д-коридоров, [широта, долгота].
+   Ключ — 'id1|id2' в алфавитном порядке, точки идут от id1 к id2 */
+const RAIL_WAYPOINTS = {
+  'beijing|shanghai':   [[36.65, 117.0], [34.26, 117.19], [32.06, 118.80], [31.30, 120.58]], // Цзинань, Сюйчжоу, Нанкин, Сучжоу
+  'beijing|nanjing':    [[36.65, 117.0], [34.26, 117.19]],
+  'beijing|suzhou':     [[36.65, 117.0], [34.26, 117.19], [32.06, 118.80]],
+  'beijing|hangzhou':   [[36.65, 117.0], [34.26, 117.19], [32.06, 118.80]],
+  'beijing|huangshan':  [[36.65, 117.0], [32.06, 118.80]],
+  'beijing|xian':       [[38.04, 114.51], [34.75, 113.62]], // Шицзячжуан, Чжэнчжоу
+  'beijing|chengdu':    [[38.04, 114.51], [34.75, 113.62], [34.34, 108.94]], // через Сиань
+  'shanghai|xian':      [[32.06, 118.80], [34.26, 117.19], [34.75, 113.62]],
+  'suzhou|xian':        [[32.06, 118.80], [34.75, 113.62]],
+  'hangzhou|xian':      [[31.86, 117.28], [34.75, 113.62]], // Хэфэй, Чжэнчжоу
+  'nanjing|xian':       [[34.26, 117.19], [34.75, 113.62]],
+  'chengdu|xian':       [[33.1, 107.0]], // через горы Циньлин
+  'chongqing|xian':     [[31.8, 108.3]],
+  'chengdu|guilin':     [[26.65, 106.63]], // Гуйян
+  'chongqing|guilin':   [[26.65, 106.63]],
+  'chongqing|guangzhou': [[26.65, 106.63], [24.8, 112.0]],
+  'guangzhou|guilin':   [[24.5, 111.3]],
+  'guilin|shenzhen':    [[23.6, 113.1]], // через Гуанчжоу
+  'chongqing|zhangjiajie': [[29.3, 108.8]],
+  'guilin|zhangjiajie': [[26.9, 109.7]], // Хуайхуа
+  'hangzhou|huangshan': [[29.9, 119.0]],
+  'huangshan|nanjing':  [[31.3, 118.4]],
+  'huangshan|shanghai': [[30.27, 120.16]], // через Ханчжоу
+  'huangshan|suzhou':   [[30.27, 120.16]],
+  'nanjing|shanghai':   [[31.30, 120.58]],
+  'nanjing|zhujiajiao': [[31.30, 120.58], [31.23, 121.47]],
+  'beijing|zhujiajiao': [[36.65, 117.0], [32.06, 118.80], [31.23, 121.47]],
+  'xian|zhujiajiao':    [[34.75, 113.62], [32.06, 118.80], [31.23, 121.47]],
+  'huangshan|zhujiajiao': [[30.27, 120.16], [31.23, 121.47]],
+};
+
+function railPoints(a, b) {
+  const key = [a, b].sort().join('|');
+  const wps = RAIL_WAYPOINTS[key];
+  if (!wps) return [];
+  return key.startsWith(a + '|') ? wps : [...wps].reverse();
 }
 
 /* Смещения подписей, чтобы плотные города не слипались: [dx, dy, anchor] */
 const LABEL_POS = {
-  shanghai: [11, 5],
-  suzhou: [-10, -6, 'end'],
-  zhujiajiao: [8, 18],
-  hangzhou: [-10, 12, 'end'],
-  nanjing: [10, -4],
-  huangshan: [-10, 6, 'end'],
-  beijing: [11, 2],
-  xian: [10, -4],
-  chengdu: [-10, -6, 'end'],
-  chongqing: [11, 12],
-  guilin: [10, -4],
-  zhangjiajie: [-10, -8, 'end'],
-  guangzhou: [-12, 4, 'end'],
-  shenzhen: [11, 10],
+  shanghai: [14, 6],
+  suzhou: [-13, -8, 'end'],
+  zhujiajiao: [10, 22],
+  hangzhou: [-13, 15, 'end'],
+  nanjing: [13, -6],
+  huangshan: [-13, 8, 'end'],
+  beijing: [14, 3],
+  xian: [13, -6],
+  chengdu: [-13, -8, 'end'],
+  chongqing: [14, 15],
+  guilin: [13, -6],
+  zhangjiajie: [-13, -10, 'end'],
+  guangzhou: [-15, 5, 'end'],
+  shenzhen: [14, 13],
 };
+
+/** Плавный путь через точки: скругляем углы квадратичными кривыми */
+function smoothPath(pts) {
+  if (pts.length === 2) {
+    const [A, B] = pts;
+    const bow = 0.05;
+    const cx = (A[0] + B[0]) / 2 - (B[1] - A[1]) * bow;
+    const cy = (A[1] + B[1]) / 2 + (B[0] - A[0]) * bow;
+    return `M ${A[0]} ${A[1]} Q ${cx} ${cy} ${B[0]} ${B[1]}`;
+  }
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+    const my = (pts[i][1] + pts[i + 1][1]) / 2;
+    d += ` Q ${pts[i][0]} ${pts[i][1]} ${mx} ${my}`;
+  }
+  const last = pts[pts.length - 1];
+  return d + ` L ${last[0]} ${last[1]}`;
+}
 
 function renderMap() {
   const wrap = document.getElementById('chinaMap');
   if (!wrap) return;
 
-  const outline = CHINA_OUTLINE.map(([lng, lat]) => mapXY(lat, lng).join(',')).join(' ');
   const route = lastRoute;
   const roundTrip = state.settings.cityIn === state.settings.cityOut && route.length > 1;
 
-  // линии маршрута (слегка изогнутые дуги)
   let lines = '';
   const drawLeg = (a, b) => {
     const A = mapXY(cityById[a].lat, cityById[a].lng);
     const B = mapXY(cityById[b].lat, cityById[b].lng);
-    const mx = (A[0] + B[0]) / 2;
-    const my = (A[1] + B[1]) / 2;
-    const dx = B[0] - A[0];
-    const dy = B[1] - A[1];
-    const bow = 0.12;
-    const cx = mx - dy * bow;
-    const cy = my + dx * bow;
     const mode = getTransfer(a, b).mode;
-    lines += `<path class="map-route ${mode === 'plane' ? 'plane' : 'ground'}"
-      d="M ${A[0]} ${A[1]} Q ${cx} ${cy} ${B[0]} ${B[1]}"/>`;
+    if (mode === 'plane') {
+      // авиамаршрут — дуга
+      const mx = (A[0] + B[0]) / 2;
+      const my = (A[1] + B[1]) / 2;
+      const bow = 0.16;
+      const cx = mx - (B[1] - A[1]) * bow;
+      const cy = my + (B[0] - A[0]) * bow;
+      lines += `<path class="map-route plane" d="M ${A[0]} ${A[1]} Q ${cx} ${cy} ${B[0]} ${B[1]}"/>`;
+    } else {
+      // ж/д — через реальные промежуточные точки коридора
+      const pts = [A, ...railPoints(a, b).map(([lat, lng]) => mapXY(lat, lng)), B];
+      lines += `<path class="map-route ground" d="${smoothPath(pts)}"/>`;
+    }
   };
   for (let i = 1; i < route.length; i++) drawLeg(route[i - 1], route[i]);
   if (roundTrip) drawLeg(route[route.length - 1], route[0]);
 
-  // точки и подписи
   let dots = '';
   CITIES.forEach((c) => {
     const [x, y] = mapXY(c.lat, c.lng);
     const sel = state.selected.has(c.id);
     dots += `<circle class="map-dot ${sel ? 'sel' : ''}" data-id="${c.id}"
-      cx="${x}" cy="${y}" r="${sel ? 7 : 4.5}" tabindex="0"
+      cx="${x}" cy="${y}" r="${sel ? 9 : 6}" tabindex="0"
       aria-label="${c.name}${sel ? ', в маршруте' : ''}"/>`;
     if (sel) {
-      const [dx, dy, anchor] = LABEL_POS[c.id] || [10, 4];
+      const [dx, dy, anchor] = LABEL_POS[c.id] || [13, 5];
       dots += `<text class="map-label" x="${x + dx}" y="${y + dy}"
         text-anchor="${anchor || 'start'}">${c.name}</text>`;
     }
@@ -520,7 +567,8 @@ function renderMap() {
 
   wrap.innerHTML = `
     <svg viewBox="0 0 ${MAP_CFG.w} ${MAP_CFG.h}" xmlns="http://www.w3.org/2000/svg">
-      <polygon class="china-land" points="${outline}"/>
+      <image href="images/map.png" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
+             opacity="0.9" preserveAspectRatio="xMidYMid meet"/>
       ${lines}
       ${dots}
     </svg>`;
@@ -808,6 +856,49 @@ function setupSettings() {
   });
 }
 
+/* ---------- Фоновая музыка ---------- */
+
+const ICON_SOUND_ON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19z" fill="currentColor" stroke="none"/><path d="M15 9a4 4 0 0 1 0 6M17.8 6.5a8 8 0 0 1 0 11"/></svg>`;
+const ICON_SOUND_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19z" fill="currentColor" stroke="none"/><path d="m15.5 9.5 5 5M20.5 9.5l-5 5"/></svg>`;
+
+function setupMusic() {
+  const audio = document.getElementById('bgMusic');
+  const btn = document.getElementById('musicBtn');
+  if (!audio || !btn) return;
+
+  audio.volume = 0.18; // тихий фон
+  let muted = false;
+  try { muted = localStorage.getItem('chinaMusicMuted') === '1'; } catch (e) { /* приватный режим */ }
+  audio.muted = muted;
+
+  const refresh = () => {
+    btn.innerHTML = audio.muted ? ICON_SOUND_OFF : ICON_SOUND_ON;
+    btn.classList.toggle('muted', audio.muted);
+    btn.setAttribute('aria-pressed', String(audio.muted));
+    btn.setAttribute('aria-label', audio.muted ? 'Включить музыку' : 'Выключить музыку');
+  };
+  refresh();
+
+  const tryPlay = () => { audio.play().catch(() => { /* автозапуск заблокирован — ждём клика */ }); };
+  tryPlay();
+
+  // браузеры блокируют автозвук до первого действия пользователя
+  const unlock = () => {
+    tryPlay();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
+
+  btn.addEventListener('click', () => {
+    audio.muted = !audio.muted;
+    if (!audio.muted) tryPlay();
+    try { localStorage.setItem('chinaMusicMuted', audio.muted ? '1' : '0'); } catch (e) { /* ок */ }
+    refresh();
+  });
+}
+
 /* ---------- Навигация и табы ---------- */
 
 function setupNav() {
@@ -845,6 +936,7 @@ function setupTabs() {
 document.addEventListener('DOMContentLoaded', () => {
   loadState();
   setupSettings();
+  setupMusic();
   setupNav();
   setupTabs();
   update();
