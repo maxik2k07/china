@@ -1,6 +1,7 @@
 /* ============================================================
    Конструктор маршрута:
-   даты + город прилёта/вылета + люди + выбор городов → план
+   даты + города прилёта/вылета + люди + выбор городов
+   + ручная настройка дней + карта + отели → готовый план
    ============================================================ */
 
 const cityById = Object.fromEntries(CITIES.map((c) => [c.id, c]));
@@ -16,7 +17,12 @@ const DEFAULT_SETTINGS = {
 const state = {
   selected: new Set(['shanghai']),
   settings: { ...DEFAULT_SETTINGS },
+  dayOverrides: {}, // cityId → число дней, выбранное пользователем
 };
+
+/* последние расчёты — нужны карте и степперам */
+let lastAlloc = {};
+let lastRoute = [];
 
 /* ---------- Сохранение / загрузка ---------- */
 
@@ -34,6 +40,11 @@ function loadState() {
         if (!cityById[state.settings.cityOut]) state.settings.cityOut = 'shanghai';
         state.settings.people = Math.min(10, Math.max(1, +state.settings.people || 2));
       }
+      if (saved.dayOverrides && typeof saved.dayOverrides === 'object') {
+        for (const [id, n] of Object.entries(saved.dayOverrides)) {
+          if (cityById[id] && Number.isInteger(n)) state.dayOverrides[id] = n;
+        }
+      }
     }
   } catch (e) { /* повреждённые данные — по умолчанию */ }
 }
@@ -43,6 +54,7 @@ function saveState() {
     localStorage.setItem('chinaTripState', JSON.stringify({
       selected: [...state.selected],
       settings: state.settings,
+      dayOverrides: state.dayOverrides,
     }));
   } catch (e) { /* приватный режим */ }
 }
@@ -60,7 +72,7 @@ function tripDays() {
 
 function datesValid() {
   const { arrive, depart } = state.settings;
-  if (!arrive || !depart) return true; // не заполнены — не ошибка
+  if (!arrive || !depart) return true;
   return new Date(depart) > new Date(arrive);
 }
 
@@ -68,44 +80,67 @@ function isLockedCity(id) {
   return id === state.settings.cityIn || id === state.settings.cityOut;
 }
 
-/** Города прилёта и вылета всегда в маршруте */
 function ensureCoreCities() {
   state.selected.add(state.settings.cityIn);
   state.selected.add(state.settings.cityOut);
 }
 
-/** Если дней стало меньше, убираем города с низким приоритетом */
+/* Минимум дней города с учётом ручной настройки */
+function effMin(id) {
+  const c = cityById[id];
+  const o = state.dayOverrides[id];
+  return o ? Math.min(Math.max(o, c.min), c.max) : c.min;
+}
+
+function effMinSum(ids) {
+  return ids.reduce((s, id) => s + effMin(id), 0);
+}
+
+/** Если дней стало меньше — убираем города с низким приоритетом */
 function autoTrim() {
   const days = tripDays();
-  let trimmed = [];
-  while (minDaysSum([...state.selected]) > days) {
+  const trimmed = [];
+  while (effMinSum([...state.selected]) > days) {
     const removable = [...state.selected]
       .filter((id) => !isLockedCity(id))
       .sort((a, b) => cityById[a].priority - cityById[b].priority);
-    if (!removable.length) break;
-    state.selected.delete(removable[0]);
-    trimmed.push(cityById[removable[0]].name);
+    if (!removable.length) {
+      // остались только города прилёта/вылета — сбрасываем ручные дни
+      if (Object.keys(state.dayOverrides).length) {
+        state.dayOverrides = {};
+        flashMessage('Дней стало меньше — ручная настройка дней сброшена к оптимуму');
+        continue;
+      }
+      break;
+    }
+    const drop = removable[0];
+    state.selected.delete(drop);
+    delete state.dayOverrides[drop];
+    trimmed.push(cityById[drop].name);
   }
   if (trimmed.length) {
     flashMessage(`Дней стало меньше — из маршрута убраны: ${trimmed.join(', ')}`);
   }
 }
 
-/* ---------- Расчёт маршрута ---------- */
-
-function minDaysSum(ids) {
-  return ids.reduce((s, id) => s + cityById[id].min, 0);
-}
+/* ---------- Распределение дней ---------- */
 
 function allocateDays(ids) {
   const total = tripDays();
   const alloc = {};
-  ids.forEach((id) => (alloc[id] = cityById[id].min));
-  let remaining = total - minDaysSum(ids);
+  let remaining = total;
 
-  const byPriority = [...ids].sort((a, b) => cityById[b].priority - cityById[a].priority);
+  ids.forEach((id) => {
+    alloc[id] = effMin(id); // ручная настройка или минимум города
+    remaining -= alloc[id];
+  });
+
+  // свободные дни раздаём только городам без ручной настройки
+  const free = ids
+    .filter((id) => !state.dayOverrides[id])
+    .sort((a, b) => cityById[b].priority - cityById[a].priority);
   for (const stage of ['ideal', 'max']) {
-    for (const id of byPriority) {
+    for (const id of free) {
       while (remaining > 0 && alloc[id] < cityById[id][stage]) {
         alloc[id]++;
         remaining--;
@@ -117,9 +152,7 @@ function allocateDays(ids) {
   return { alloc, unused: Math.max(0, remaining) };
 }
 
-/* Стоимость переезда для оптимизации: цена билета + «цена» времени в пути.
-   Час в дороге условно оцениваем в 120 ¥; перелёту добавляем 3 часа
-   на дорогу в аэропорт, досмотр и ожидание. */
+/* ---------- Оптимизация порядка городов ---------- */
 
 function transferHours(t) {
   const s = String(t.time).replace(/,/g, '.');
@@ -138,32 +171,38 @@ function transferCost(a, b) {
   const t = getTransfer(a, b);
   const price = parseInt(String(t.price).replace(/\D+/g, ''), 10) || 500;
   let hours = transferHours(t);
-  if (t.mode === 'plane') hours += 3;
-  const cost = price + hours * 120;
+  if (t.mode === 'plane') hours += 3; // аэропорт, досмотр, ожидание
+  const cost = price + hours * 120;   // час пути ≈ 120 ¥
   costCache.set(key, cost);
   return cost;
 }
 
-/** Оптимальный порядок: старт — город прилёта, финиш — город вылета.
-    Перебираем все перестановки промежуточных городов и берём самый
-    дешёвый по деньгам и времени вариант. */
+function pathCost(path, roundTrip) {
+  let cost = 0;
+  for (let i = 1; i < path.length; i++) cost += transferCost(path[i - 1], path[i]);
+  if (roundTrip && path.length > 1) cost += transferCost(path[path.length - 1], path[0]);
+  return cost;
+}
+
+/** Оптимальный порядок: полный перебор до 8 промежуточных городов,
+    дальше — «ближайший сосед» + 2-opt улучшение */
 function orderCities(ids) {
   const { cityIn, cityOut } = state.settings;
   const middle = ids.filter((id) => id !== cityIn && id !== cityOut);
   const roundTrip = cityIn === cityOut;
 
-  if (middle.length > 8) return nnOrder(ids); // страховка от взрыва перестановок
+  if (middle.length > 8) return twoOptOrder(ids);
 
   let best = null;
   let bestCost = Infinity;
 
   const permute = (rest, path, cost) => {
-    if (cost >= bestCost) return; // отсечение заведомо худших веток
+    if (cost >= bestCost) return;
     if (!rest.length) {
       let total = cost;
       const last = path[path.length - 1];
       if (!roundTrip) total += transferCost(last, cityOut);
-      else if (path.length > 1) total += transferCost(last, cityIn); // обратно к вылету
+      else if (path.length > 1) total += transferCost(last, cityIn);
       if (total < bestCost) {
         bestCost = total;
         best = roundTrip ? [...path] : [...path, cityOut];
@@ -172,11 +211,10 @@ function orderCities(ids) {
     }
     const last = path[path.length - 1];
     for (let i = 0; i < rest.length; i++) {
-      const next = rest[i];
       permute(
         [...rest.slice(0, i), ...rest.slice(i + 1)],
-        [...path, next],
-        cost + transferCost(last, next)
+        [...path, rest[i]],
+        cost + transferCost(last, rest[i])
       );
     }
   };
@@ -185,10 +223,12 @@ function orderCities(ids) {
   return best || (roundTrip ? [cityIn] : [cityIn, cityOut]);
 }
 
-/** Запасной вариант — «ближайший сосед» по координатам */
-function nnOrder(ids) {
+/** Запасной вариант: «ближайший сосед» + 2-opt */
+function twoOptOrder(ids) {
   const { cityIn, cityOut } = state.settings;
+  const roundTrip = cityIn === cityOut;
   const middle = new Set(ids.filter((id) => id !== cityIn && id !== cityOut));
+
   const route = [cityIn];
   let cur = cityById[cityIn];
   while (middle.size) {
@@ -203,11 +243,33 @@ function nnOrder(ids) {
     middle.delete(best);
     cur = cityById[best];
   }
-  if (cityOut !== cityIn) route.push(cityOut);
+  if (!roundTrip) route.push(cityOut);
+
+  // 2-opt: переворачиваем отрезки, пока это удешевляет путь (концы закреплены)
+  const lastFixed = roundTrip ? 0 : 1;
+  let improved = true;
+  let guard = 0;
+  while (improved && guard++ < 60) {
+    improved = false;
+    for (let i = 1; i < route.length - 1 - lastFixed; i++) {
+      for (let j = i + 1; j < route.length - lastFixed; j++) {
+        const candidate = [
+          ...route.slice(0, i),
+          ...route.slice(i, j + 1).reverse(),
+          ...route.slice(j + 1),
+        ];
+        if (pathCost(candidate, roundTrip) < pathCost(route, roundTrip)) {
+          route.splice(0, route.length, ...candidate);
+          improved = true;
+        }
+      }
+    }
+  }
   return route;
 }
 
-/** Примерная стоимость переездов на всех человек */
+/* ---------- Бюджет ---------- */
+
 function transportBudget(route) {
   let sum = 0;
   for (let i = 1; i < route.length; i++) {
@@ -215,7 +277,6 @@ function transportBudget(route) {
     const n = parseInt(String(t.price).replace(/\D+/g, ''), 10);
     if (!isNaN(n)) sum += n;
   }
-  // обратный переезд, если вылет из города прилёта
   const { cityIn, cityOut } = state.settings;
   if (cityIn === cityOut && route.length > 1) {
     const t = getTransfer(route[route.length - 1], cityIn);
@@ -225,7 +286,21 @@ function transportBudget(route) {
   return sum * state.settings.people;
 }
 
-/* ---------- Форматирование дат ---------- */
+function roomsCount() {
+  return Math.ceil(state.settings.people / 2);
+}
+
+function hotelBudget(route, alloc) {
+  const rooms = roomsCount();
+  let sum = 0;
+  route.forEach((id) => {
+    const h = (HOTELS[id] || [])[0];
+    if (h && h.price) sum += h.price * alloc[id] * rooms;
+  });
+  return sum;
+}
+
+/* ---------- Форматирование ---------- */
 
 const fmtDay = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 const fmtWeekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
@@ -244,10 +319,26 @@ function dayWord(n) {
   return 'дней';
 }
 
+function nightWord(n) {
+  if (n % 10 === 1 && n % 100 !== 11) return 'ночь';
+  if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'ночи';
+  return 'ночей';
+}
+
+function roomWord(n) {
+  if (n % 10 === 1 && n % 100 !== 11) return 'номер';
+  if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'номера';
+  return 'номеров';
+}
+
 function peopleWord(n) {
   if (n === 1) return 'путешественник';
   if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'путешественника';
   return 'путешественников';
+}
+
+function fmtYuan(n) {
+  return n.toLocaleString('ru-RU');
 }
 
 /* ---------- Рендер: параметры поездки ---------- */
@@ -316,9 +407,10 @@ function toggleCity(id) {
   }
   if (state.selected.has(id)) {
     state.selected.delete(id);
+    delete state.dayOverrides[id];
   } else {
-    const next = [...state.selected, id];
-    if (minDaysSum(next) > tripDays()) {
+    const needed = effMinSum([...state.selected]) + city.min;
+    if (needed > tripDays()) {
       flashMessage(`Не хватает дней: на «${city.name}» нужно минимум ${city.min} ${dayWord(city.min)}. Уберите другой город или сдвиньте даты.`);
       return;
     }
@@ -336,36 +428,186 @@ function flashMessage(text) {
   msgTimer = setTimeout(() => el.classList.remove('show'), 4500);
 }
 
+/* ---------- Карта Китая ---------- */
+
+/* Упрощённый контур материкового Китая, [долгота, широта] */
+const CHINA_OUTLINE = [
+  [73.6, 39.4], [75, 37.2], [78, 35.6], [79, 33], [81.5, 30.4], [85, 28.5],
+  [88.1, 27.9], [92, 27.5], [94.6, 29.3], [96, 29], [97.5, 28.2], [98.7, 25.9],
+  [97.6, 24.3], [98.9, 23.2], [100.2, 21.5], [101.7, 21.1], [102.5, 22.4],
+  [105, 23], [106.7, 22.1], [108.1, 21.5], [109.6, 21.4], [110.4, 20.3],
+  [111.8, 21.6], [113.2, 22.1], [114.8, 22.6], [116.6, 23.3], [118.1, 24.5],
+  [119.6, 25.7], [120.2, 27.3], [121.4, 28.4], [122, 30.3], [121.5, 31.4],
+  [120.9, 32.6], [119.8, 34.4], [120.3, 36.1], [122.5, 37.4], [121.1, 37.7],
+  [119.2, 37.2], [117.8, 38.4], [117.6, 39.2], [119, 39.9], [121, 40.7],
+  [121.3, 38.9], [122.3, 39.05], [123.5, 39.8], [124.4, 39.8], [125.3, 40.6],
+  [126.9, 41.7], [128.1, 41.4], [129.2, 42.4], [130.7, 42.3], [131.3, 44.9],
+  [133.1, 45.1], [134.7, 47.7], [134.6, 48.3], [132.6, 47.8], [130.9, 48.9],
+  [129.5, 49.4], [127.8, 49.6], [126.9, 51.3], [125.9, 53], [123.6, 53.5],
+  [121.5, 53.3], [119.9, 52.5], [117.8, 49.5], [115.6, 47.9], [113.6, 45],
+  [111.4, 43.4], [105, 41.9], [100.9, 42.6], [96.4, 42.7], [95.9, 44.3],
+  [93.5, 45], [90.9, 47.9], [87.8, 49.2], [85.5, 47.1], [83, 47.2],
+  [82.1, 45.6], [79.9, 44.9], [80.4, 43.1], [76, 40.5],
+];
+
+const MAP_CFG = { minLng: 73, maxLng: 135.5, minLat: 17.5, maxLat: 54.5, w: 800, h: 570 };
+
+function mapXY(lat, lng) {
+  const x = (lng - MAP_CFG.minLng) / (MAP_CFG.maxLng - MAP_CFG.minLng) * MAP_CFG.w;
+  const y = (MAP_CFG.maxLat - lat) / (MAP_CFG.maxLat - MAP_CFG.minLat) * MAP_CFG.h;
+  return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+}
+
+/* Смещения подписей, чтобы плотные города не слипались: [dx, dy, anchor] */
+const LABEL_POS = {
+  shanghai: [11, 5],
+  suzhou: [-10, -6, 'end'],
+  zhujiajiao: [8, 18],
+  hangzhou: [-10, 12, 'end'],
+  nanjing: [10, -4],
+  huangshan: [-10, 6, 'end'],
+  beijing: [11, 2],
+  xian: [10, -4],
+  chengdu: [-10, -6, 'end'],
+  chongqing: [11, 12],
+  guilin: [10, -4],
+  zhangjiajie: [-10, -8, 'end'],
+  guangzhou: [-12, 4, 'end'],
+  shenzhen: [11, 10],
+};
+
+function renderMap() {
+  const wrap = document.getElementById('chinaMap');
+  if (!wrap) return;
+
+  const outline = CHINA_OUTLINE.map(([lng, lat]) => mapXY(lat, lng).join(',')).join(' ');
+  const route = lastRoute;
+  const roundTrip = state.settings.cityIn === state.settings.cityOut && route.length > 1;
+
+  // линии маршрута (слегка изогнутые дуги)
+  let lines = '';
+  const drawLeg = (a, b) => {
+    const A = mapXY(cityById[a].lat, cityById[a].lng);
+    const B = mapXY(cityById[b].lat, cityById[b].lng);
+    const mx = (A[0] + B[0]) / 2;
+    const my = (A[1] + B[1]) / 2;
+    const dx = B[0] - A[0];
+    const dy = B[1] - A[1];
+    const bow = 0.12;
+    const cx = mx - dy * bow;
+    const cy = my + dx * bow;
+    const mode = getTransfer(a, b).mode;
+    lines += `<path class="map-route ${mode === 'plane' ? 'plane' : 'ground'}"
+      d="M ${A[0]} ${A[1]} Q ${cx} ${cy} ${B[0]} ${B[1]}"/>`;
+  };
+  for (let i = 1; i < route.length; i++) drawLeg(route[i - 1], route[i]);
+  if (roundTrip) drawLeg(route[route.length - 1], route[0]);
+
+  // точки и подписи
+  let dots = '';
+  CITIES.forEach((c) => {
+    const [x, y] = mapXY(c.lat, c.lng);
+    const sel = state.selected.has(c.id);
+    dots += `<circle class="map-dot ${sel ? 'sel' : ''}" data-id="${c.id}"
+      cx="${x}" cy="${y}" r="${sel ? 7 : 4.5}" tabindex="0"
+      aria-label="${c.name}${sel ? ', в маршруте' : ''}"/>`;
+    if (sel) {
+      const [dx, dy, anchor] = LABEL_POS[c.id] || [10, 4];
+      dots += `<text class="map-label" x="${x + dx}" y="${y + dy}"
+        text-anchor="${anchor || 'start'}">${c.name}</text>`;
+    }
+  });
+
+  wrap.innerHTML = `
+    <svg viewBox="0 0 ${MAP_CFG.w} ${MAP_CFG.h}" xmlns="http://www.w3.org/2000/svg">
+      <polygon class="china-land" points="${outline}"/>
+      ${lines}
+      ${dots}
+    </svg>`;
+
+  bindMapEvents(wrap);
+}
+
+function bindMapEvents(wrap) {
+  const tooltip = document.getElementById('mapTooltip');
+  const container = wrap.closest('.map-wrap');
+
+  const show = (dot) => {
+    const id = dot.dataset.id;
+    const c = cityById[id];
+    const sel = state.selected.has(id);
+    const days = lastAlloc[id];
+    const top = c.dayPlans[0].spots.slice(0, 3).map((s) => s.name).join(' · ');
+    tooltip.innerHTML = sel
+      ? `<strong>${c.name} <span class="cn">${c.cn}</span></strong>
+         <span class="tt-days">${days} ${dayWord(days)} в маршруте</span>
+         <p>${c.tagline}</p>
+         <p class="tt-top">Главное: ${top}</p>`
+      : `<strong>${c.name} <span class="cn">${c.cn}</span></strong>
+         <p>${c.tagline}</p>
+         <p class="tt-top">Нажмите на точку, чтобы добавить в маршрут</p>`;
+    const dotRect = dot.getBoundingClientRect();
+    const contRect = container.getBoundingClientRect();
+    tooltip.hidden = false;
+    const left = Math.min(
+      Math.max(dotRect.left - contRect.left + dotRect.width / 2, 110),
+      contRect.width - 110
+    );
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = (dotRect.top - contRect.top - 12) + 'px';
+  };
+
+  wrap.querySelectorAll('.map-dot').forEach((dot) => {
+    dot.addEventListener('mouseenter', () => show(dot));
+    dot.addEventListener('focus', () => show(dot));
+    dot.addEventListener('mouseleave', () => { tooltip.hidden = true; });
+    dot.addEventListener('blur', () => { tooltip.hidden = true; });
+    dot.addEventListener('click', () => {
+      tooltip.hidden = true;
+      toggleCity(dot.dataset.id);
+    });
+  });
+}
+
 /* ---------- Рендер: маршрут ---------- */
 
 function renderItinerary() {
   const ids = [...state.selected];
   const { alloc, unused } = allocateDays(ids);
   const route = orderCities(ids);
+  lastAlloc = alloc;
+  lastRoute = route;
+
   const total = tripDays();
   const s = state.settings;
-
   const used = total - unused;
+
   document.getElementById('daysUsed').textContent = used;
   document.getElementById('daysTotal').textContent = total;
   document.getElementById('daysBar').style.width = (used / total) * 100 + '%';
-
   document.getElementById('routeLine').textContent =
     route.map((id) => cityById[id].name).join(' → ');
 
   const hint = document.getElementById('daysHint');
   hint.textContent = unused > 0
-    ? `Осталось ${unused} свободных ${dayWord(unused)} — добавьте город или оставьте на отдых.`
+    ? `Осталось ${unused} свободных ${dayWord(unused)} — добавьте город, дни городам (кнопка «+») или отдых.`
     : 'Все дни распределены.';
 
-  const budget = transportBudget(route);
-  document.getElementById('budgetLine').textContent = budget
-    ? `Переезды между городами: ≈ ${budget.toLocaleString('ru-RU')} ¥ на ${s.people} ${peopleWord(s.people)} (~${Math.round(budget * 12).toLocaleString('ru-RU')} ₽)`
+  const resetBtn = document.getElementById('resetDays');
+  resetBtn.hidden = Object.keys(state.dayOverrides).length === 0;
+
+  const tBudget = transportBudget(route);
+  const hBudget = hotelBudget(route, alloc);
+  const grand = tBudget + hBudget;
+  document.getElementById('budgetLine').innerHTML = grand
+    ? `Переезды ≈ ${fmtYuan(tBudget)} ¥ · отели ≈ ${fmtYuan(hBudget)} ¥ ·
+       итого ≈ <strong>${fmtYuan(grand)} ¥</strong> на ${s.people} ${peopleWord(s.people)} (~${fmtYuan(Math.round(grand * 12))} ₽)`
     : '';
 
   const wrap = document.getElementById('itinerary');
   let html = '';
   let dayNum = 0;
+  const rooms = roomsCount();
 
   route.forEach((id, i) => {
     const city = cityById[id];
@@ -384,6 +626,7 @@ function renderItinerary() {
         </div>`;
     }
 
+    const overridden = !!state.dayOverrides[id];
     html += `
       <div class="city-block">
         <div class="city-block-header">
@@ -392,10 +635,34 @@ function renderItinerary() {
           <div class="city-block-title">
             <div>
               <h3>${city.name} <span class="cn">${city.cn}</span></h3>
-              <p>${days} ${dayWord(days)} · ${city.tagline}</p>
+              <p>${city.tagline}</p>
+            </div>
+            <div class="day-stepper ${overridden ? 'overridden' : ''}" title="Сколько дней провести в городе">
+              <button type="button" class="stepper-btn" data-id="${id}" data-action="minus"
+                aria-label="Меньше дней в городе ${city.name}" ${days <= city.min ? 'disabled' : ''}>−</button>
+              <span class="stepper-value">${days} ${dayWord(days)}</span>
+              <button type="button" class="stepper-btn" data-id="${id}" data-action="plus"
+                aria-label="Больше дней в городе ${city.name}" ${days >= city.max ? 'disabled' : ''}>+</button>
             </div>
           </div>
         </div>`;
+
+    const hotels = HOTELS[id];
+    if (hotels && hotels[0] && hotels[0].price) {
+      const h = hotels[0];
+      const alt = hotels[1];
+      const totalHotel = h.price * days * rooms;
+      html += `
+        <div class="hotel-tip">
+          <span class="hotel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6M3 18h18M3 18v2M21 18v2M6 10V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3"/><path d="M7 10h4v0"/></svg></span>
+          <div>
+            <strong>Где жить: ${h.area}.</strong> ${h.why[0].toUpperCase() + h.why.slice(1)}.
+            <span class="hotel-price">≈ ${fmtYuan(totalHotel)} ¥ за ${days} ${nightWord(days)}
+            (${rooms} ${roomWord(rooms)} × ${h.price} ¥)</span>
+            ${alt && alt.price ? `<span class="hotel-alt">Бюджетно: ${alt.area} — от ${alt.price} ¥/ночь (${alt.why}).</span>` : ''}
+          </div>
+        </div>`;
+    }
 
     for (let d = 0; d < days; d++) {
       dayNum++;
@@ -431,11 +698,10 @@ function renderItinerary() {
       <div class="transfer free-days">
         <span class="transfer-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
         <div><strong>${unused === 1 ? 'Остался 1 свободный день' : `Осталось ${unused} свободных ${dayWord(unused)}`}.</strong>
-        Оставьте запас на отдых и шопинг — или добавьте ещё один город выше.</div>
+        Добавьте дни городам кнопкой «+», добавьте ещё город — или оставьте запас на отдых.</div>
       </div>`;
   }
 
-  // возвращение домой
   const last = route[route.length - 1];
   let homeText;
   if (s.cityIn === s.cityOut && route.length > 1) {
@@ -455,6 +721,39 @@ function renderItinerary() {
   wrap.innerHTML = html;
 }
 
+/* ---------- Настройка дней (степперы) ---------- */
+
+function stepDay(id, action) {
+  const city = cityById[id];
+  const cur = lastAlloc[id];
+  if (action === 'plus') {
+    if (cur >= city.max) {
+      flashMessage(`${city.name}: максимум ${city.max} ${dayWord(city.max)} — на дольше не хватит программы`);
+      return;
+    }
+    const candidate = { ...state.dayOverrides, [id]: cur + 1 };
+    const sum = [...state.selected].reduce((s, cid) => {
+      const c = cityById[cid];
+      const o = candidate[cid];
+      return s + (o ? Math.min(Math.max(o, c.min), c.max) : c.min);
+    }, 0);
+    if (sum > tripDays()) {
+      flashMessage('Свободных дней нет — уберите день у другого города или сдвиньте даты');
+      return;
+    }
+    state.dayOverrides[id] = cur + 1;
+  } else {
+    if (cur <= city.min) {
+      flashMessage(`${city.name}: минимум ${city.min} ${dayWord(city.min)} — иначе город лучше убрать совсем`);
+      return;
+    }
+    state.dayOverrides[id] = cur - 1;
+  }
+  update();
+}
+
+/* ---------- Общий рендер ---------- */
+
 function update() {
   ensureCoreCities();
   autoTrim();
@@ -462,6 +761,7 @@ function update() {
   renderSettings();
   renderCityPicker();
   renderItinerary();
+  renderMap();
 }
 
 /* ---------- Обработчики параметров ---------- */
@@ -494,6 +794,17 @@ function setupSettings() {
   document.getElementById('peoplePlus').addEventListener('click', () => {
     state.settings.people = Math.min(10, state.settings.people + 1);
     update();
+  });
+  document.getElementById('resetDays').addEventListener('click', () => {
+    state.dayOverrides = {};
+    flashMessage('Дни пересчитаны к оптимальному распределению');
+    update();
+  });
+
+  // степперы дней в маршруте (делегирование — список перерисовывается)
+  document.getElementById('itinerary').addEventListener('click', (e) => {
+    const btn = e.target.closest('.stepper-btn');
+    if (btn && !btn.disabled) stepDay(btn.dataset.id, btn.dataset.action);
   });
 }
 

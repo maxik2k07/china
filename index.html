@@ -110,7 +110,8 @@
     <p class="section-kicker" style="margin-top:44px">Шаг 2</p>
     <h2>Выберите города</h2>
     <p class="section-sub">Города прилёта и вылета уже в маршруте. Добавляйте остальные,
-      пока хватает дней — сайт сам распределит время и построит порядок посещения.</p>
+      пока хватает дней — сайт сам распределит время и построит оптимальный порядок.
+      Количество дней в каждом городе можно подправить кнопками − и + в маршруте ниже.</p>
 
     <div class="picker-status glass">
       <div class="days-meter-top">
@@ -119,9 +120,25 @@
       </div>
       <div class="days-track"><div class="days-bar" id="daysBar"></div></div>
       <p class="picker-message" id="pickerMessage" role="status"></p>
+      <button type="button" class="reset-days" id="resetDays" hidden>↺ Сбросить дни к оптимуму</button>
     </div>
 
     <div class="city-grid" id="cityGrid"></div>
+
+    <div class="map-wrap glass">
+      <div class="map-head">
+        <h3>Карта маршрута</h3>
+        <div class="map-legend">
+          <span class="leg leg-ground">поезд</span>
+          <span class="leg leg-plane">перелёт</span>
+          <span class="leg leg-city">город в маршруте</span>
+        </div>
+      </div>
+      <div class="map-canvas" id="chinaMap" role="img" aria-label="Схематичная карта Китая с маршрутом путешествия"></div>
+      <div class="map-tooltip" id="mapTooltip" hidden></div>
+      <p class="map-note">Карта схематичная. Наведите на точку — увидите сводку по городу;
+        нажмите — добавите или уберёте его из маршрута.</p>
+    </div>
   </div>
 </section>
 

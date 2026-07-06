@@ -840,3 +840,223 @@ button { cursor: pointer; }
   .trip-form { grid-template-columns: 1fr; }
   .trip-summary-wrap { flex-direction: column; gap: 4px; }
 }
+
+/* ============================================================
+   Карта Китая
+   ============================================================ */
+
+.map-wrap {
+  position: relative;
+  margin-top: 28px;
+  padding: 22px 26px 16px;
+}
+.map-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.map-head h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+}
+.map-legend { display: flex; gap: 18px; flex-wrap: wrap; }
+.leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.leg::before {
+  content: '';
+  display: inline-block;
+}
+.leg-ground::before { width: 26px; height: 0; border-top: 2.5px solid var(--red); border-radius: 2px; }
+.leg-plane::before { width: 26px; height: 0; border-top: 2.5px dashed var(--red); border-radius: 2px; }
+.leg-city::before { width: 11px; height: 11px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px #fff; }
+
+.map-canvas svg { width: 100%; height: auto; display: block; }
+
+.china-land {
+  fill: rgba(200, 16, 46, 0.055);
+  stroke: rgba(200, 16, 46, 0.4);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.map-route {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+.map-route.plane { stroke-dasharray: 8 7; animation: routeDash 1.6s linear infinite; }
+
+@keyframes routeDash {
+  to { stroke-dashoffset: -30; }
+}
+
+.map-dot {
+  fill: #a29587;
+  cursor: pointer;
+  transition: r 0.2s var(--ease), fill 0.2s;
+}
+.map-dot:hover { fill: var(--red-dark); }
+.map-dot.sel {
+  fill: var(--red);
+  stroke: #fff;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 2px 5px rgba(200, 16, 46, 0.5));
+}
+.map-label {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 800;
+  fill: var(--red-dark);
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.88);
+  stroke-width: 3.5px;
+  pointer-events: none;
+}
+
+.map-tooltip {
+  position: absolute;
+  z-index: 5;
+  width: 230px;
+  transform: translate(-50%, -100%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(31, 24, 20, 0.22);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+.map-tooltip strong { font-size: 14.5px; display: block; }
+.map-tooltip .tt-days {
+  display: inline-block;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 1px 9px;
+  margin: 4px 0;
+}
+.map-tooltip p { color: var(--ink-soft); margin-top: 3px; }
+.map-tooltip .tt-top { color: var(--ink); font-weight: 600; }
+
+.map-note {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Степпер дней в городе ---------- */
+
+.city-block-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.day-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+.day-stepper.overridden { outline: 2px solid var(--gold); }
+.stepper-btn {
+  width: 34px;
+  height: 32px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--red);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.stepper-btn:hover:not(:disabled) { background: var(--red-soft); }
+.stepper-btn:disabled { color: #c9beb2; cursor: default; }
+.stepper-value {
+  min-width: 62px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.reset-days {
+  margin-top: 10px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--red-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 4px 0;
+}
+.reset-days:hover { color: var(--red); }
+
+/* ---------- Отель в городе ---------- */
+
+.hotel-tip {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+  padding: 14px 24px;
+  background: rgba(212, 160, 23, 0.09);
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.hotel-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--gold-dark);
+}
+.hotel-icon svg { width: 100%; height: 100%; }
+.hotel-tip strong { color: var(--ink); }
+.hotel-price {
+  display: block;
+  margin-top: 3px;
+  font-weight: 800;
+  color: var(--gold-dark);
+}
+.hotel-alt {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 760px) {
+  .map-wrap { padding: 16px 14px 12px; }
+  .map-head h3 { font-size: 19px; }
+  .map-legend { gap: 12px; }
+  .map-label { font-size: 16px; }
+  .map-tooltip { width: 200px; }
+  .city-block-title { align-items: center; }
+  .day-stepper { padding: 3px; }
+  .stepper-btn { width: 38px; height: 36px; }
+  .hotel-tip { padding: 12px 16px; }
+}
