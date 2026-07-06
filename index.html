@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Китай — конструктор путешествия из Шанхая</title>
+  <meta name="description" content="Конструктор путешествия по Китаю: выберите даты, города и получите готовый маршрут с достопримечательностями, ценами и практическими советами.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Prata&family=Noto+Serif+SC:wght@600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏮</text></svg>">
+</head>
+<body>
+
+<!-- ======================= НАВИГАЦИЯ ======================= -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="#top" class="logo"><span class="logo-cn">中国</span> Путешествие в Китай</a>
+    <button class="burger" id="burger" aria-label="Меню">
+      <span></span><span></span><span></span>
+    </button>
+    <ul class="nav-menu" id="navMenu">
+      <li><a href="#constructor">Конструктор</a></li>
+      <li><a href="#itinerary-section">Маршрут</a></li>
+      <li><a href="#info">Полезное</a></li>
+      <li><a href="#phrasebook">Разговорник</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ======================= HERO ======================= -->
+<header class="hero" id="top">
+  <img src="images/hero.jpg" alt="Панорама Китая" class="hero-img" onerror="this.style.display='none'">
+  <div class="hero-overlay"></div>
+  <div class="container hero-content">
+    <p class="hero-kicker">你好 · Путеводитель для самостоятельного путешествия</p>
+    <h1>Путешествие<br>в <span class="accent">Китай</span></h1>
+    <p class="hero-sub">Выберите даты, города прилёта и вылета — и получите готовый маршрут
+      по дням: достопримечательности, цены, поезда и советы.</p>
+    <div class="hero-actions">
+      <a href="#constructor" class="btn btn-primary">Собрать маршрут</a>
+      <a href="#info" class="btn btn-ghost">Памятка туриста</a>
+    </div>
+    <div class="hero-facts glass-dark">
+      <div class="fact"><strong>¥ 1 ≈ 12 ₽</strong><span>юань женьминьби</span></div>
+      <div class="fact"><strong>+5 ч</strong><span>к Москве</span></div>
+      <div class="fact"><strong>до 30 дней</strong><span>без визы для РФ*</span></div>
+      <div class="fact"><strong>350 км/ч</strong><span>скоростные поезда</span></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ======================= КОНСТРУКТОР ======================= -->
+<section class="section" id="constructor">
+  <div class="container">
+    <p class="section-kicker">Шаг 1</p>
+    <h2>Параметры поездки</h2>
+    <p class="section-sub">Когда летите, куда прилетаете и откуда улетаете — маршрут подстроится
+      под длину поездки автоматически.</p>
+
+    <div class="trip-form glass">
+      <div class="trip-field">
+        <label for="arriveDate">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+          Дата приезда
+        </label>
+        <input type="date" id="arriveDate">
+      </div>
+      <div class="trip-field">
+        <label for="departDate">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M14 15l2 2 4-4"/></svg>
+          Дата отъезда
+        </label>
+        <input type="date" id="departDate">
+      </div>
+      <div class="trip-field">
+        <label for="cityIn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-4.5 7-8.2 7-11.5A7 7 0 0 0 5 9.5C5 12.8 8 16.5 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          Город прилёта
+        </label>
+        <select id="cityIn"></select>
+      </div>
+      <div class="trip-field">
+        <label for="cityOut">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+          Город вылета
+        </label>
+        <select id="cityOut"></select>
+      </div>
+      <div class="trip-field trip-field-people">
+        <label id="peopleLabel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.7"/><path d="M17.5 14.6c2.2.5 3.5 2.3 3.5 4.4"/></svg>
+          Путешественники
+        </label>
+        <div class="people-counter" role="group" aria-labelledby="peopleLabel">
+          <button type="button" id="peopleMinus" aria-label="Меньше человек">−</button>
+          <span id="peopleCount" aria-live="polite">2</span>
+          <button type="button" id="peoplePlus" aria-label="Больше человек">+</button>
+        </div>
+      </div>
+      <div class="trip-summary-wrap">
+        <p class="trip-summary" id="tripSummary"></p>
+        <p class="date-error" id="dateError" role="alert"></p>
+      </div>
+    </div>
+
+    <p class="section-kicker" style="margin-top:44px">Шаг 2</p>
+    <h2>Выберите города</h2>
+    <p class="section-sub">Города прилёта и вылета уже в маршруте. Добавляйте остальные,
+      пока хватает дней — сайт сам распределит время и построит порядок посещения.</p>
+
+    <div class="picker-status glass">
+      <div class="days-meter-top">
+        <span>Занято дней: <strong><span id="daysUsed">3</span> / <span id="daysTotal">10</span></strong></span>
+        <span id="daysHint" class="days-hint"></span>
+      </div>
+      <div class="days-track"><div class="days-bar" id="daysBar"></div></div>
+      <p class="picker-message" id="pickerMessage" role="status"></p>
+    </div>
+
+    <div class="city-grid" id="cityGrid"></div>
+  </div>
+</section>
+
+<!-- ======================= МАРШРУТ ======================= -->
+<section class="section" id="itinerary-section">
+  <div class="container">
+    <p class="section-kicker">Шаг 3</p>
+    <h2>Ваш маршрут по дням</h2>
+    <div class="route-line-wrap glass">
+      <p>Оптимальный порядок посещения (по времени и цене переездов): <strong id="routeLine"></strong></p>
+      <p class="budget-line" id="budgetLine"></p>
+    </div>
+    <div id="itinerary"></div>
+    <p class="disclaimer glass">Цены на билеты и входы ориентировочные (лето 2026), проверяйте актуальные на
+      Trip.com и официальных площадках. Популярные места (Запретный город, Терракотовая армия, панды)
+      бронируйте онлайн заранее — по паспорту.</p>
+  </div>
+</section>
+
+<!-- ======================= ПОЛЕЗНАЯ ИНФОРМАЦИЯ ======================= -->
+<section class="section" id="info">
+  <div class="container">
+    <p class="section-kicker">Памятка</p>
+    <h2>Полезная информация</h2>
+
+    <div class="info-tabs" role="tablist">
+      <button class="info-tab active" data-panel="panel-transport">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3.5"/><path d="M4 11.5h16"/><circle cx="8.3" cy="14.8" r="0.9" fill="currentColor" stroke="none"/><circle cx="15.7" cy="14.8" r="0.9" fill="currentColor" stroke="none"/><path d="m7.5 21 1.7-3M16.5 21l-1.7-3"/></svg>
+        Транспорт
+      </button>
+      <button class="info-tab" data-panel="panel-money">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6.5 14.5h4"/></svg>
+        Деньги
+      </button>
+      <button class="info-tab" data-panel="panel-internet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9a15 15 0 0 1 19 0M5.5 12.5a10.5 10.5 0 0 1 13 0M8.5 16a6 6 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+        Интернет
+      </button>
+      <button class="info-tab" data-panel="panel-food">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2V3M6.5 3v18M14 3c-1 1.5-1.5 3.5-1.5 6 0 2 .8 3 2 3h1.5v9M18.5 3v18" transform="translate(1.5 0) scale(.92)"/></svg>
+        Еда
+      </button>
+      <button class="info-tab" data-panel="panel-visa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.5v5.2c0 4.4 3 7.7 7 9.3 4-1.6 7-4.9 7-9.3V5.5z"/><path d="m9 11.5 2 2 4-4"/></svg>
+        Виза и безопасность
+      </button>
+    </div>
+
+    <!-- Транспорт -->
+    <div class="info-panel active" id="panel-transport">
+      <div class="info-cards">
+        <div class="info-card glass">
+          <h3>Метро</h3>
+          <p>Есть во всех крупных городах, указатели дублируются на английском.
+            Билет — по расстоянию: <strong>3–9 ¥</strong>. Оплата QR-кодом через Alipay
+            (раздел Transport) — карту покупать не обязательно. На входе — досмотр сумок.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Такси и DiDi</h3>
+          <p>Посадка <strong>14–16 ¥</strong>, далее ~2,5–3 ¥/км. Заказывайте через приложение
+            <strong>DiDi</strong> (есть английский, вызов внутри Alipay) — не нужно объяснять адрес.
+            Водители почти не говорят по-английски: показывайте адрес иероглифами.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Скоростные поезда</h3>
+          <p>Основной транспорт между городами: 300–350 км/ч. Билеты — через
+            <strong>Trip.com</strong> или приложение <strong>China Railway 12306</strong>,
+            по загранпаспорту. Вход на вокзал по паспорту, приезжайте за 40–60 минут.
+            2-й класс комфортен, примеры цен: Шанхай→Ханчжоу 73 ¥, Шанхай→Пекин 553 ¥.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Из аэропорта Шанхая</h3>
+          <p>Из Пудуна: <strong>маглев</strong> (430 км/ч, 8 минут, 50 ¥) до метро Longyang Rd,
+            либо метро линия 2 (~7 ¥, ~1 ч до центра), либо такси ~200 ¥.
+            Автобусы по городу — 2 ¥, но проще метро.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Деньги -->
+    <div class="info-panel" id="panel-money">
+      <div class="info-cards">
+        <div class="info-card glass">
+          <h3>Alipay и WeChat Pay</h3>
+          <p>Китай платит телефоном. Установите <strong>Alipay</strong> заранее и привяжите карту
+            Visa/Mastercard/UnionPay (российские карты «Мир» не работают — нужна карта зарубежного
+            банка или UnionPay). Оплата — сканированием QR-кода продавца.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Наличные</h3>
+          <p>По закону наличные обязаны принимать везде, но сдачу ищут долго. Возьмите
+            <strong>500–1000 ¥ наличными</strong> на случай сбоев. Снять юани можно в банкоматах
+            Bank of China / ICBC с карты UnionPay. Обмен валюты — в банках по паспорту.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Ориентир по ценам</h3>
+          <p>Уличная еда 10–30 ¥ · обед в кафе 30–80 ¥ · ресторан 100–200 ¥ ·
+            отель 3★ 250–500 ¥ · хостел 60–150 ¥ · вода 2–3 ¥ · кофе 20–35 ¥ ·
+            магнитик 10–20 ¥. Чаевые в Китае <strong>не приняты</strong>.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Торг</h3>
+          <p>На рынках и в сувенирных рядах торг обязателен: начинайте с 30–40% названной цены.
+            В магазинах с ценниками и в ресторанах не торгуются.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Интернет -->
+    <div class="info-panel" id="panel-internet">
+      <div class="info-cards">
+        <div class="info-card glass">
+          <h3>Великий файрвол</h3>
+          <p>Google, YouTube, Instagram, WhatsApp, Telegram в Китае <strong>заблокированы</strong>.
+            Установите и проверьте <strong>VPN до вылета</strong> — внутри страны скачать сложно.
+            Альтернатива: туристический eSIM с трафиком через Гонконг — блокировки не действуют.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Связь</h3>
+          <p>Проще всего — <strong>eSIM</strong> (Trip.com, Airalo, Nomad): от ~10 $ за 10 ГБ.
+            Физическую SIM China Unicom можно купить в аэропорту по паспорту.
+            Wi-Fi в отелях есть, в кафе часто требует китайский номер.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Карты и переводчик</h3>
+          <p>Google Maps в Китае почти не работает. Используйте <strong>Amap (高德)</strong> или
+            Apple Maps (на iPhone работает отлично). Переводчик — Яндекс или Google
+            со <strong>скачанным офлайн-пакетом</strong> китайского + перевод по фото для меню.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Набор приложений</h3>
+          <p><strong>Alipay</strong> (оплата + такси + метро), <strong>WeChat</strong> (мессенджер),
+            <strong>Trip.com</strong> (поезда, отели, билеты), <strong>Amap</strong> (карты),
+            <strong>Dianping</strong> (рестораны — местный «ТрипЭдвайзор»), переводчик офлайн.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Еда -->
+    <div class="info-panel" id="panel-food">
+      <div class="info-cards">
+        <div class="info-card glass">
+          <h3>Что обязательно попробовать</h3>
+          <p><strong>Сяолунбао</strong> (Шанхай) — пельмени с бульоном внутри ·
+            <strong>утка по-пекински</strong> · <strong>хого</strong> — «китайский самовар» (Чэнду) ·
+            лапша <strong>бянбян</strong> и шашлычки (Сиань) · чай <strong>лунцзин</strong> (Ханчжоу) ·
+            димсамы, баоцзы, цзяньбин — уличные завтраки.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Об остроте</h3>
+          <p>Сычуаньская кухня очень острая. Волшебная фраза: <strong>бу яо ла</strong> (不要辣) —
+            «не острое». Перец «хуацзяо» ещё и «онемляет» язык — это нормально.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Вода и правила</h3>
+          <p>Воду из-под крана <strong>не пить</strong> — только бутилированную (2–3 ¥) или кипяток
+            (кулеры с кипятком есть везде, включая поезда). Палочками не втыкать в рис.
+            Счёт просят словом «майдань». Платит обычно один — раздельные счета не приняты.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Как заказывать</h3>
+          <p>В большинстве кафе меню — QR-код на столе (открывается в Alipay/WeChat, есть картинки).
+            Dianping подскажет лучшие блюда заведения. Порции большие — берите одно блюдо на человека
+            плюс рис.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Виза и безопасность -->
+    <div class="info-panel" id="panel-visa">
+      <div class="info-cards">
+        <div class="info-card glass">
+          <h3>Виза</h3>
+          <p>Для граждан РФ действует <strong>безвизовый въезд до 30 дней</strong> (пробный режим,
+            продлён до сентября 2026 — проверьте актуальность перед поездкой). Загранпаспорт должен
+            действовать 6+ месяцев. При заселении отель сам регистрирует вас в полиции — выбирайте
+            отели с пометкой «принимают иностранцев».</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Экстренные номера</h3>
+          <p>Полиция <strong>110</strong> · скорая <strong>120</strong> · пожарные <strong>119</strong>.
+            Посольство РФ в Пекине: +86 (10) 6532-1381. Генконсульство в Шанхае: +86 (21) 6324-8383.
+            Китай — одна из самых безопасных стран мира, но паспорт носите с собой: его просят
+            в музеях, на вокзалах и в отелях.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Бронируйте заранее</h3>
+          <p>Запретный город, Терракотовая армия, музеи (бесплатные — тоже!) требуют
+            <strong>онлайн-брони по паспорту</strong>, билеты на топ-места разбирают за несколько дней.
+            Бронь — через Trip.com или официальные WeChat-аккаунты.</p>
+        </div>
+        <div class="info-card glass">
+          <h3>Мелочи, которые спасают</h3>
+          <p>Возьмите переходник (розетки типа A/I, но большинство отелей — универсальные) ·
+            влажные салфетки (в уличных кафе нет салфеток) · визитку отеля с адресом иероглифами ·
+            скриншоты броней. Розетки 220 В.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= РАЗГОВОРНИК ======================= -->
+<section class="section" id="phrasebook">
+  <div class="container">
+    <p class="section-kicker">你好!</p>
+    <h2>Мини-разговорник</h2>
+    <p class="section-sub">Английский в Китае знают плохо — даже пара фраз вызывает искреннюю радость.
+      Читайте «как написано» в третьей колонке.</p>
+
+    <div class="phrase-table-wrap glass">
+      <table class="phrase-table">
+        <thead>
+          <tr><th>По-русски</th><th>Иероглифы</th><th>Как сказать</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Привет</td><td lang="zh">你好</td><td><strong>ни хао</strong></td></tr>
+          <tr><td>Спасибо</td><td lang="zh">谢谢</td><td><strong>сье-сье</strong></td></tr>
+          <tr><td>Пожалуйста / не за что</td><td lang="zh">不客气</td><td><strong>бу кэ-ци</strong></td></tr>
+          <tr><td>Да / нет</td><td lang="zh">是 / 不是</td><td><strong>ши / бу ши</strong></td></tr>
+          <tr><td>Сколько стоит?</td><td lang="zh">多少钱?</td><td><strong>дуо-шао чьень</strong></td></tr>
+          <tr><td>Слишком дорого!</td><td lang="zh">太贵了!</td><td><strong>тай гуй лэ</strong></td></tr>
+          <tr><td>Извините</td><td lang="zh">对不起</td><td><strong>дуй-бу-ци</strong></td></tr>
+          <tr><td>Я не понимаю</td><td lang="zh">我听不懂</td><td><strong>во тин бу дун</strong></td></tr>
+          <tr><td>Где туалет?</td><td lang="zh">厕所在哪里?</td><td><strong>цэ-суо цзай на-ли</strong></td></tr>
+          <tr><td>Счёт, пожалуйста</td><td lang="zh">买单</td><td><strong>май-дань</strong></td></tr>
+          <tr><td>Не острое, пожалуйста</td><td lang="zh">不要辣</td><td><strong>бу яо ла</strong></td></tr>
+          <tr><td>Я хочу вот это</td><td lang="zh">我要这个</td><td><strong>во яо чжэ-гэ</strong></td></tr>
+          <tr><td>Вода</td><td lang="zh">水</td><td><strong>шуй</strong></td></tr>
+          <tr><td>Вкусно!</td><td lang="zh">好吃!</td><td><strong>хао чи</strong></td></tr>
+          <tr><td>Помогите!</td><td lang="zh">救命!</td><td><strong>цзю мин</strong></td></tr>
+          <tr><td>До свидания</td><td lang="zh">再见</td><td><strong>цзай-цзьень</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="phrase-tip glass">
+      <strong>Лайфхак:</strong> цифры на пальцах в Китае показывают иначе (6 — это «коза» из большого
+      пальца и мизинца). Проще написать цифру в телефоне или на калькуляторе — продавцы так и делают.
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ======================= ФУТЕР ======================= -->
+<footer class="footer">
+  <div class="container">
+    <p class="footer-cn">一路平安</p>
+    <p>Счастливого пути! · Путеводитель составлен в 2026 году, цены ориентировочные.</p>
+    <p class="footer-note">* Безвизовый режим для граждан РФ — пробный, проверяйте актуальные правила
+      на сайте посольства КНР перед покупкой билетов.</p>
+  </div>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
