@@ -700,16 +700,23 @@ function bindMapEvents(wrap) {
       blob.setAttribute('cy', p.y.toFixed(1));
       blob.setAttribute('r', 58);
       blob.setAttribute('fill', 'url(#brushGrad)');
-      const fade = document.createElementNS(NS, 'animate');
-      fade.setAttribute('attributeName', 'opacity');
-      fade.setAttribute('from', '1');
-      fade.setAttribute('to', '0');
-      fade.setAttribute('begin', '0.5s');
-      fade.setAttribute('dur', '0.9s');
-      fade.setAttribute('fill', 'freeze');
-      blob.appendChild(fade);
       trail.appendChild(blob);
-      setTimeout(() => blob.remove(), 1500);
+      // CSS-переходы внутри <mask> не анимируются — затухание ведём вручную
+      const born = performance.now();
+      const HOLD = 0.5;  // мазок держится, сек
+      const FADE = 0.9;  // и затем растворяется, сек
+      const tick = (now) => {
+        if (!blob.isConnected) return;
+        const t = (now - born) / 1000;
+        if (t >= HOLD + FADE) { blob.remove(); return; }
+        if (t > HOLD) {
+          blob.setAttribute('opacity', (1 - (t - HOLD) / FADE).toFixed(3));
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      // страховка: rAF замирает в скрытой вкладке — не копим след
+      setTimeout(() => blob.remove(), (HOLD + FADE) * 1000 + 700);
     });
   }
 }
