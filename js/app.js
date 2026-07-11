@@ -522,6 +522,23 @@ function smoothPath(pts) {
   return d + ` L ${last[0]} ${last[1]}`;
 }
 
+/* «Линза»: под курсором сквозь карту проступает рисованная карта
+   с миниатюрами достопримечательностей. Файл появится позже —
+   ищем images/map-art.jpg или .png и включаем эффект, если он есть */
+let lensArtSrc = null;
+
+function probeLensArt() {
+  const candidates = ['images/map-art.jpg', 'images/map-art.png'];
+  const tryNext = (i) => {
+    if (i >= candidates.length) return;
+    const probe = new Image();
+    probe.onload = () => { lensArtSrc = candidates[i]; renderMap(); };
+    probe.onerror = () => tryNext(i + 1);
+    probe.src = candidates[i];
+  };
+  tryNext(0);
+}
+
 function renderMap() {
   const wrap = document.getElementById('chinaMap');
   if (!wrap) return;
@@ -565,13 +582,27 @@ function renderMap() {
     }
   });
 
+  const lensDefs = lensArtSrc ? `
+      <defs>
+        <clipPath id="lensClip"><circle id="lensCircle" cx="-500" cy="-500" r="118"/></clipPath>
+      </defs>` : '';
+  const lensArt = lensArtSrc ? `
+      <image href="${lensArtSrc}" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
+             preserveAspectRatio="none" clip-path="url(#lensClip)" class="lens-art"/>
+      <circle id="lensRing" class="lens-ring" cx="-500" cy="-500" r="118"/>` : '';
+
   wrap.innerHTML = `
     <svg viewBox="0 0 ${MAP_CFG.w} ${MAP_CFG.h}" xmlns="http://www.w3.org/2000/svg">
+      ${lensDefs}
       <image href="images/map.png" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
              opacity="0.9" preserveAspectRatio="xMidYMid meet"/>
       ${lines}
+      ${lensArt}
       ${dots}
     </svg>`;
+
+  const lensNote = document.getElementById('mapNoteLens');
+  if (lensNote) lensNote.hidden = !lensArtSrc;
 
   bindMapEvents(wrap);
 }
@@ -615,6 +646,28 @@ function bindMapEvents(wrap) {
       toggleCity(dot.dataset.id);
     });
   });
+
+  // «линза» с рисованной картой следует за курсором
+  const svg = wrap.querySelector('svg');
+  const lensCircle = svg.querySelector('#lensCircle');
+  const lensRing = svg.querySelector('#lensRing');
+  if (lensCircle && lensRing) {
+    const moveLens = (e) => {
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+      lensCircle.setAttribute('cx', p.x);
+      lensCircle.setAttribute('cy', p.y);
+      lensRing.setAttribute('cx', p.x);
+      lensRing.setAttribute('cy', p.y);
+    };
+    const hideLens = () => {
+      [lensCircle, lensRing].forEach((el) => {
+        el.setAttribute('cx', -500);
+        el.setAttribute('cy', -500);
+      });
+    };
+    svg.addEventListener('mousemove', moveLens);
+    svg.addEventListener('mouseleave', hideLens);
+  }
 }
 
 /* ---------- Рендер: маршрут ---------- */
@@ -800,6 +853,57 @@ function stepDay(id, action) {
   update();
 }
 
+/* ---------- Появление секций при скролле (в духе Apple) ---------- */
+
+let revealObserver = null;
+let dynamicRevealed = false;
+
+function setupReveals() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.body.classList.add('anim');
+
+  revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      if (en.isIntersecting) {
+        en.target.classList.add('in-view');
+        revealObserver.unobserve(en.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+  document.querySelectorAll(
+    '.section-kicker, .section h2, .section-sub, .trip-form, .picker-status, ' +
+    '.map-wrap, .route-line-wrap, .disclaimer, .info-tabs, .phrase-table-wrap, .phrase-tip'
+  ).forEach((el) => markReveal(el));
+
+  // лёгкий параллакс фото в шапке
+  const heroImg = document.querySelector('.hero-img');
+  if (heroImg) {
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY;
+      if (y < window.innerHeight * 1.2) {
+        heroImg.style.transform = `translateY(${y * 0.28}px) scale(1.06)`;
+      }
+    }, { passive: true });
+  }
+}
+
+function markReveal(el, delayMs) {
+  if (!revealObserver || el.classList.contains('reveal')) return;
+  el.classList.add('reveal');
+  if (delayMs) el.style.setProperty('--reveal-delay', delayMs + 'ms');
+  revealObserver.observe(el);
+}
+
+/* Карточки городов и блоки маршрута анимируем только при первой
+   отрисовке — чтобы список не мигал при каждом клике */
+function revealDynamic() {
+  if (!revealObserver || dynamicRevealed) return;
+  dynamicRevealed = true;
+  document.querySelectorAll('.city-grid .city-card').forEach((el, i) => markReveal(el, (i % 3) * 80));
+  document.querySelectorAll('#itinerary .city-block, #itinerary .transfer').forEach((el) => markReveal(el));
+}
+
 /* ---------- Общий рендер ---------- */
 
 function update() {
@@ -810,6 +914,7 @@ function update() {
   renderCityPicker();
   renderItinerary();
   renderMap();
+  revealDynamic();
 }
 
 /* ---------- Обработчики параметров ---------- */
@@ -939,5 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupMusic();
   setupNav();
   setupTabs();
+  setupReveals();
+  probeLensArt();
   update();
 });

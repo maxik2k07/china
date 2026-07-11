@@ -1127,3 +1127,48 @@ button { cursor: pointer; }
   .music-btn { width: 38px; height: 38px; }
   .map-label { font-size: 24px; }
 }
+
+/* ============================================================
+   Скролл-анимации в духе Apple + линза на карте
+   ============================================================ */
+
+/* появление секций при прокрутке (класс anim ставит JS,
+   без JS или с reduced-motion всё видно сразу) */
+body.anim .reveal {
+  opacity: 0;
+  transform: translateY(34px) scale(0.985);
+  transition:
+    opacity 0.85s var(--ease),
+    transform 0.85s var(--ease);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+body.anim .reveal.in-view {
+  opacity: 1;
+  transform: none;
+}
+
+/* вход шапки при загрузке */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-kicker, .hero h1, .hero-sub, .hero-actions, .hero-facts {
+    animation: heroIn 0.95s var(--ease) backwards;
+  }
+  .hero h1 { animation-delay: 0.1s; }
+  .hero-sub { animation-delay: 0.22s; }
+  .hero-actions { animation-delay: 0.34s; }
+  .hero-facts { animation-delay: 0.48s; }
+  .hero-img { will-change: transform; }
+}
+@keyframes heroIn {
+  from { opacity: 0; transform: translateY(26px); }
+}
+
+/* линза с рисованной картой */
+.lens-art { pointer-events: none; }
+.lens-ring {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 4;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.35));
+  pointer-events: none;
+}
