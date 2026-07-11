@@ -527,6 +527,10 @@ function smoothPath(pts) {
    ищем images/map-art.jpg или .png и включаем эффект, если он есть */
 let lensArtSrc = null;
 
+/* Аффинная подгонка рисованной карты (1536×1024) под силуэт подложки —
+   совмещение масок суши по центроиду и главным осям */
+const ART_MATRIX = 'matrix(0.67916 -0.04686 0.03215 0.69530 -56.28 77.39)';
+
 function probeLensArt() {
   const candidates = ['images/map-art.jpg', 'images/map-art.png'];
   const tryNext = (i) => {
@@ -552,17 +556,26 @@ function renderMap() {
     const B = mapXY(cityById[b].lat, cityById[b].lng);
     const mode = getTransfer(a, b).mode;
     if (mode === 'plane') {
-      // авиамаршрут — дуга
+      // авиамаршрут — дуга со стрелкой и самолётиком на середине
       const mx = (A[0] + B[0]) / 2;
       const my = (A[1] + B[1]) / 2;
       const bow = 0.16;
       const cx = mx - (B[1] - A[1]) * bow;
       const cy = my + (B[0] - A[0]) * bow;
-      lines += `<path class="map-route plane" d="M ${A[0]} ${A[1]} Q ${cx} ${cy} ${B[0]} ${B[1]}"/>`;
+      lines += `<path class="air-route" marker-end="url(#arrowHead)"
+        d="M ${A[0]} ${A[1]} Q ${cx} ${cy} ${B[0]} ${B[1]}"/>`;
+      const px = 0.25 * A[0] + 0.5 * cx + 0.25 * B[0];
+      const py = 0.25 * A[1] + 0.5 * cy + 0.25 * B[1];
+      const ang = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI + 90;
+      lines += `<g class="plane-glyph" transform="translate(${px.toFixed(1)} ${py.toFixed(1)}) rotate(${ang.toFixed(1)})">
+        <path d="M0 -8 L1.8 -2 7.5 0.6 7.5 2.4 1.8 1 1.4 5.4 3.4 7.2 3.4 8.6 0 7.6 -3.4 8.6 -3.4 7.2 -1.4 5.4 -1.8 1 -7.5 2.4 -7.5 0.6 -1.8 -2 Z"/>
+      </g>`;
     } else {
-      // ж/д — через реальные промежуточные точки коридора
+      // ж/д — двойная линия «со шпалами» по реальному коридору
       const pts = [A, ...railPoints(a, b).map(([lat, lng]) => mapXY(lat, lng)), B];
-      lines += `<path class="map-route ground" d="${smoothPath(pts)}"/>`;
+      const d = smoothPath(pts);
+      lines += `<path class="rail-base" marker-end="url(#arrowHead)" d="${d}"/>`;
+      lines += `<path class="rail-ties" d="${d}"/>`;
     }
   };
   for (let i = 1; i < route.length; i++) drawLeg(route[i - 1], route[i]);
@@ -572,28 +585,50 @@ function renderMap() {
   CITIES.forEach((c) => {
     const [x, y] = mapXY(c.lat, c.lng);
     const sel = state.selected.has(c.id);
-    dots += `<circle class="map-dot ${sel ? 'sel' : ''}" data-id="${c.id}"
-      cx="${x}" cy="${y}" r="${sel ? 9 : 6}" tabindex="0"
-      aria-label="${c.name}${sel ? ', в маршруте' : ''}"/>`;
     if (sel) {
+      // «жемчужина»: белое ядро с золотой сердцевиной и расходящейся волной
+      dots += `
+        <g class="city-marker">
+          <circle class="ping" cx="${x}" cy="${y}" r="9"/>
+          <circle class="marker-core" cx="${x}" cy="${y}" r="6.3"/>
+          <circle class="marker-inner" cx="${x}" cy="${y}" r="3.6"/>
+        </g>
+        <circle class="map-dot sel" data-id="${c.id}" cx="${x}" cy="${y}" r="12"
+          tabindex="0" aria-label="${c.name}, в маршруте"/>`;
       const [dx, dy, anchor] = LABEL_POS[c.id] || [13, 5];
       dots += `<text class="map-label" x="${x + dx}" y="${y + dy}"
         text-anchor="${anchor || 'start'}">${c.name}</text>`;
+    } else {
+      dots += `<circle class="map-dot idle" data-id="${c.id}" cx="${x}" cy="${y}" r="5"
+        tabindex="0" aria-label="${c.name}"/>`;
     }
   });
 
   const lensDefs = lensArtSrc ? `
-      <defs>
-        <clipPath id="lensClip"><circle id="lensCircle" cx="-500" cy="-500" r="118"/></clipPath>
-      </defs>` : '';
+        <radialGradient id="brushGrad">
+          <stop offset="0%" stop-color="#fff"/>
+          <stop offset="60%" stop-color="#fff" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+        </radialGradient>
+        <mask id="lensMask" maskUnits="userSpaceOnUse" x="0" y="0"
+              width="${MAP_CFG.w}" height="${MAP_CFG.h}">
+          <g id="brushTrail"></g>
+        </mask>` : '';
   const lensArt = lensArtSrc ? `
-      <image href="${lensArtSrc}" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
-             preserveAspectRatio="none" clip-path="url(#lensClip)" class="lens-art"/>
-      <circle id="lensRing" class="lens-ring" cx="-500" cy="-500" r="118"/>` : '';
+      <g mask="url(#lensMask)" class="lens-art">
+        <image href="${lensArtSrc}" width="1536" height="1024" preserveAspectRatio="none"
+               transform="${ART_MATRIX}"/>
+      </g>` : '';
 
   wrap.innerHTML = `
     <svg viewBox="0 0 ${MAP_CFG.w} ${MAP_CFG.h}" xmlns="http://www.w3.org/2000/svg">
-      ${lensDefs}
+      <defs>
+        <marker id="arrowHead" viewBox="0 0 10 10" refX="7.5" refY="5"
+                markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#fff" stroke="rgba(0,0,0,0.3)" stroke-width="0.8"/>
+        </marker>
+        ${lensDefs}
+      </defs>
       <image href="images/map.png" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
              opacity="0.9" preserveAspectRatio="xMidYMid meet"/>
       ${lines}
@@ -647,26 +682,35 @@ function bindMapEvents(wrap) {
     });
   });
 
-  // «линза» с рисованной картой следует за курсором
+  // «кисть»: курсор стирает флаг, открывая рисованную карту,
+  // след постепенно затягивается обратно
   const svg = wrap.querySelector('svg');
-  const lensCircle = svg.querySelector('#lensCircle');
-  const lensRing = svg.querySelector('#lensRing');
-  if (lensCircle && lensRing) {
-    const moveLens = (e) => {
+  const trail = svg.querySelector('#brushTrail');
+  if (trail) {
+    const NS = 'http://www.w3.org/2000/svg';
+    let lastX = -100;
+    let lastY = -100;
+    svg.addEventListener('mousemove', (e) => {
       const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
-      lensCircle.setAttribute('cx', p.x);
-      lensCircle.setAttribute('cy', p.y);
-      lensRing.setAttribute('cx', p.x);
-      lensRing.setAttribute('cy', p.y);
-    };
-    const hideLens = () => {
-      [lensCircle, lensRing].forEach((el) => {
-        el.setAttribute('cx', -500);
-        el.setAttribute('cy', -500);
-      });
-    };
-    svg.addEventListener('mousemove', moveLens);
-    svg.addEventListener('mouseleave', hideLens);
+      if (Math.hypot(p.x - lastX, p.y - lastY) < 13) return; // мазки, а не заливка
+      lastX = p.x;
+      lastY = p.y;
+      const blob = document.createElementNS(NS, 'circle');
+      blob.setAttribute('cx', p.x.toFixed(1));
+      blob.setAttribute('cy', p.y.toFixed(1));
+      blob.setAttribute('r', 58);
+      blob.setAttribute('fill', 'url(#brushGrad)');
+      const fade = document.createElementNS(NS, 'animate');
+      fade.setAttribute('attributeName', 'opacity');
+      fade.setAttribute('from', '1');
+      fade.setAttribute('to', '0');
+      fade.setAttribute('begin', '0.5s');
+      fade.setAttribute('dur', '0.9s');
+      fade.setAttribute('fill', 'freeze');
+      blob.appendChild(fade);
+      trail.appendChild(blob);
+      setTimeout(() => blob.remove(), 1500);
+    });
   }
 }
 
@@ -876,16 +920,21 @@ function setupReveals() {
     '.map-wrap, .route-line-wrap, .disclaimer, .info-tabs, .phrase-table-wrap, .phrase-tip'
   ).forEach((el) => markReveal(el));
 
-  // лёгкий параллакс фото в шапке
+  // параллакс фото и «скраб» контента шапки: при прокрутке текст
+  // плавно уплывает и растворяется, как на страницах Apple
   const heroImg = document.querySelector('.hero-img');
-  if (heroImg) {
-    window.addEventListener('scroll', () => {
-      const y = window.scrollY;
-      if (y < window.innerHeight * 1.2) {
-        heroImg.style.transform = `translateY(${y * 0.28}px) scale(1.06)`;
+  const heroContent = document.querySelector('.hero-content');
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    const vh = window.innerHeight;
+    if (y < vh * 1.2) {
+      if (heroImg) heroImg.style.transform = `translateY(${y * 0.28}px) scale(1.06)`;
+      if (heroContent) {
+        heroContent.style.opacity = Math.max(0, 1 - y / (vh * 0.75));
+        heroContent.style.transform = `translateY(${y * 0.14}px)`;
       }
-    }, { passive: true });
-  }
+    }
+  }, { passive: true });
 }
 
 function markReveal(el, delayMs) {
