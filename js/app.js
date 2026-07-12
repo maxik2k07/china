@@ -526,21 +526,34 @@ function smoothPath(pts) {
    с миниатюрами достопримечательностей. Файл появится позже —
    ищем images/map-art.jpg или .png и включаем эффект, если он есть */
 let lensArtSrc = null;
+let physicalSrc = null; // физическая карта — подложка вместо флага
 
 /* Аффинная подгонка рисованной карты (1536×1024) под силуэт подложки —
-   совмещение масок суши по центроиду и главным осям */
+   совмещение масок суши по центроиду и главным осям.
+   Той же матрицей рисуется и физическая подложка, поэтому границы
+   подложки и «проявляемой» карты совпадают пиксель в пиксель */
 const ART_MATRIX = 'matrix(0.67916 -0.04686 0.03215 0.69530 -56.28 77.39)';
 
-function probeLensArt() {
-  const candidates = ['images/map-art.jpg', 'images/map-art.png'];
+function probeImage(candidates, done) {
   const tryNext = (i) => {
     if (i >= candidates.length) return;
     const probe = new Image();
-    probe.onload = () => { lensArtSrc = candidates[i]; renderMap(); };
+    probe.onload = () => done(candidates[i]);
     probe.onerror = () => tryNext(i + 1);
     probe.src = candidates[i];
   };
   tryNext(0);
+}
+
+function probeLensArt() {
+  probeImage(['images/map-art.jpg', 'images/map-art.png'], (src) => {
+    lensArtSrc = src;
+    renderMap();
+  });
+  probeImage(['images/map-physical.jpg', 'images/map-physical.png'], (src) => {
+    physicalSrc = src;
+    renderMap();
+  });
 }
 
 function renderMap() {
@@ -620,8 +633,17 @@ function renderMap() {
                transform="${ART_MATRIX}"/>
       </g>` : '';
 
+  // подложка: физическая карта (в геометрии рисованной) либо флаг-запаска
+  const baseImage = physicalSrc
+    ? `<rect x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}" fill="#ece2c9" rx="14"/>
+       <image href="${physicalSrc}" width="1536" height="1024" preserveAspectRatio="none"
+              transform="${ART_MATRIX}"/>`
+    : `<image href="images/map.png" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
+              opacity="0.9" preserveAspectRatio="xMidYMid meet"/>`;
+
   wrap.innerHTML = `
-    <svg viewBox="0 0 ${MAP_CFG.w} ${MAP_CFG.h}" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 ${MAP_CFG.w} ${MAP_CFG.h}" xmlns="http://www.w3.org/2000/svg"
+         class="${physicalSrc ? 'map-physical' : ''}">
       <defs>
         <marker id="arrowHead" viewBox="0 0 10 10" refX="7.5" refY="5"
                 markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
@@ -629,8 +651,7 @@ function renderMap() {
         </marker>
         ${lensDefs}
       </defs>
-      <image href="images/map.png" x="0" y="0" width="${MAP_CFG.w}" height="${MAP_CFG.h}"
-             opacity="0.9" preserveAspectRatio="xMidYMid meet"/>
+      ${baseImage}
       ${lines}
       ${lensArt}
       ${dots}

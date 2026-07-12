@@ -1252,3 +1252,26 @@ body.anim .reveal.in-view {
 @media (prefers-reduced-motion: reduce) {
   .ping, .air-route { animation: none; }
 }
+
+/* ============================================================
+   Режим физической карты: тёмные линии и подписи на светлом
+   ============================================================ */
+
+.map-physical .rail-base { stroke: var(--red); opacity: 0.9; }
+.map-physical .rail-ties { stroke: #fff; }
+.map-physical .air-route { stroke: var(--red-dark); opacity: 0.85; }
+.map-physical .plane-glyph path { fill: var(--red-dark); stroke: rgba(255, 255, 255, 0.7); }
+.map-physical .map-label {
+  fill: var(--red-dark);
+  stroke: rgba(255, 255, 255, 0.92);
+}
+.map-physical .map-dot.idle {
+  fill: rgba(143, 11, 32, 0.75);
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 1.4;
+}
+.map-physical .map-dot.idle:hover { fill: var(--red); }
+.map-physical .ping { stroke: var(--red); }
+.map-physical .marker-inner { fill: var(--red); }
+.map-physical #arrowHead path,
+.map-physical marker path { fill: var(--red-dark); stroke: rgba(255, 255, 255, 0.7); }
